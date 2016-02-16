@@ -97,7 +97,37 @@ impl Position {
     }
 
     fn make_move(&mut self, motion: Move) {
+        let from = self.piece_at(motion.from).unwrap();
+        let bitboard = self.get_bitboard(from);
 
+        *bitboard = bitboard.clone() | motion.to.to_bitboard();
+    }
+
+    fn get_bitboard(&mut self, piece: Piece) -> &mut Bitboard {
+        match piece.color {
+            Color::White => {
+                match piece.kind {
+                    PieceKind::Pawn => &mut self.white.pawns,
+                    PieceKind::Knight => &mut self.white.knights,
+                    PieceKind::Bishop => &mut self.white.bishops,
+                    PieceKind::Rook => &mut self.white.rooks,
+                    PieceKind::Queen => &mut self.white.queens,
+                    PieceKind::King => &mut self.white.king
+                }
+            },
+
+            Color::Black => {
+                match piece.kind {
+                    PieceKind::Pawn => &mut self.black.pawns,
+                    PieceKind::Knight => &mut self.black.knights,
+                    PieceKind::Bishop => &mut self.black.bishops,
+                    PieceKind::Rook => &mut self.black.rooks,
+                    PieceKind::Queen => &mut self.black.queens,
+                    PieceKind::King => &mut self.black.king
+                }
+
+            }
+        }
     }
 }
 
