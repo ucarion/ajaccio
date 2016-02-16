@@ -1,0 +1,7 @@
+[package]
+name = "ajaccio"
+version = "0.1.0"
+authors = ["Ulysse Carion <ulysse@ulysse.io>"]
+
+[dependencies]
+fen = "0.1.0"
