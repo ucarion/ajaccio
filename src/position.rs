@@ -102,9 +102,32 @@ impl Position {
     pub fn make_move(&mut self, motion: Move) {
         let from = self.piece_at(motion.from).unwrap();
 
+        // update half-move counter -- this is done early so that the move being performed can
+        // reset it to zero later
+        match from.kind {
+            PieceKind::Pawn => {
+                self.halfmove_clock = 0;
+            },
+
+            _ => {
+                self.halfmove_clock += 1;
+            }
+        }
+
+        // update full-move number
+        match from.color {
+            Color::Black => {
+                self.fullmove_number += 1;
+            },
+
+            _ => {}
+        }
+
         // change the bitboard of any piece being captured
         match self.piece_at(motion.to) {
             Some(to) => {
+                self.halfmove_clock = 0;
+
                 let bitboard = self.get_bitboard(to);
                 let bitmask = motion.to.to_bitboard();
 
@@ -229,26 +252,6 @@ impl Position {
                     }
                 }
             }
-
-            _ => {}
-        }
-
-        // update half-move counter
-        match from.kind {
-            PieceKind::Pawn => {
-                self.halfmove_clock = 0;
-            },
-
-            _ => {
-                self.halfmove_clock += 1;
-            }
-        }
-
-        // update full-move number
-        match from.color {
-            Color::Black => {
-                self.fullmove_number += 1;
-            },
 
             _ => {}
         }
@@ -484,7 +487,7 @@ fn make_move_capture() {
     let white_knight = Piece::new(Color::White, PieceKind::Knight);
     assert_eq!(Some(white_knight), position.piece_at(Square::from_san("e5")));
     assert_eq!(None, position.piece_at(Square::from_san("f3")));
-    assert_eq!(1, position.halfmove_clock);
+    assert_eq!(0, position.halfmove_clock);
 
     let motion = Move {
         from: Square::from_san("c6"),
@@ -497,7 +500,7 @@ fn make_move_capture() {
     let black_knight = Piece::new(Color::Black, PieceKind::Knight);
     assert_eq!(Some(black_knight), position.piece_at(Square::from_san("e5")));
     assert_eq!(None, position.piece_at(Square::from_san("c6")));
-    assert_eq!(2, position.halfmove_clock);
+    assert_eq!(0, position.halfmove_clock);
 }
 
 #[test]
