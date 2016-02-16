@@ -128,7 +128,7 @@ impl Position {
             Some(to) => {
                 self.halfmove_clock = 0;
 
-                let bitboard = self.get_bitboard(to);
+                let bitboard = self.get_bitboard_mut(to);
                 let bitmask = motion.to.to_bitboard();
 
                 *bitboard = bitboard.clone() ^ bitmask;
@@ -139,7 +139,7 @@ impl Position {
 
         {
             // change the bitboard of the moving piece
-            let bitboard = self.get_bitboard(from.clone());
+            let bitboard = self.get_bitboard_mut(from.clone());
             let bitmask = motion.from.to_bitboard() | motion.to.to_bitboard();
 
             *bitboard = bitboard.clone() ^ bitmask;
@@ -263,31 +263,15 @@ impl Position {
         };
     }
 
-    pub fn get_bitboard(&mut self, piece: Piece) -> &mut Bitboard {
-        match piece.color {
-            Color::White => {
-                match piece.kind {
-                    PieceKind::Pawn => &mut self.white.pawns,
-                    PieceKind::Knight => &mut self.white.knights,
-                    PieceKind::Bishop => &mut self.white.bishops,
-                    PieceKind::Rook => &mut self.white.rooks,
-                    PieceKind::Queen => &mut self.white.queens,
-                    PieceKind::King => &mut self.white.king
-                }
-            },
-
-            Color::Black => {
-                match piece.kind {
-                    PieceKind::Pawn => &mut self.black.pawns,
-                    PieceKind::Knight => &mut self.black.knights,
-                    PieceKind::Bishop => &mut self.black.bishops,
-                    PieceKind::Rook => &mut self.black.rooks,
-                    PieceKind::Queen => &mut self.black.queens,
-                    PieceKind::King => &mut self.black.king
-                }
-
-            }
+    pub fn get_army_mut(&mut self, color: Color) -> &mut Army {
+        match color {
+            Color::White => &mut self.white,
+            Color::Black => &mut self.black
         }
+    }
+
+    pub fn get_bitboard_mut(&mut self, piece: Piece) -> &mut Bitboard {
+        self.get_army_mut(piece.color).get_bitboard_mut(piece.kind)
     }
 }
 
@@ -347,7 +331,7 @@ impl fmt::Display for Piece {
 }
 
 #[derive(Debug, Default)]
-struct Army {
+pub struct Army {
     pawns: Bitboard,
     knights: Bitboard,
     bishops: Bitboard,
