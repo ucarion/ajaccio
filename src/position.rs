@@ -138,6 +138,32 @@ impl Position {
                 }
             },
 
+            PieceKind::Rook => {
+                // handle updating castling rights
+                match self.side_to_play {
+                    Color::White => {
+                        if motion.from == Square::from_san("h1") {
+                            self.white_can_oo = false;
+                        }
+
+                        if motion.from == Square::from_san("a1") {
+                            self.white_can_ooo = false;
+                        }
+                    },
+
+                    Color::Black => {
+                        if motion.from == Square::from_san("h8") {
+                            self.black_can_oo = false;
+                        }
+
+                        if motion.from == Square::from_san("a8") {
+                            self.black_can_ooo = false;
+                        }
+                    }
+                }
+
+            }
+
             PieceKind::King => {
                 // handle castling and update castling rights
                 match self.side_to_play {
@@ -462,4 +488,15 @@ fn make_move_castle() {
     assert_eq!(None, position.piece_at(Square::from_san("h1")));
     assert!(!position.white_can_oo);
     assert!(!position.white_can_ooo);
+
+    let motion = Move {
+        from: Square::from_san("a8"),
+        to: Square::from_san("a6"),
+        promote_to: None
+    };
+
+    position.make_move(motion);
+
+    assert!(position.black_can_oo);
+    assert!(!position.black_can_ooo);
 }
