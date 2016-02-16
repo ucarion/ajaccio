@@ -269,22 +269,3 @@ fn make_move_e2e4_e7e5() {
     assert_eq!(None, position.piece_at(Square::from_san("e7")));
     assert_eq!(Some(Square::from_san("e6")), position.en_passant);
 }
-
-#[test]
-fn make_move_e2e4() {
-    let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    let mut position = Position::from_fen(fen).unwrap();
-
-    let motion = Move {
-        from: Square::from_san("e2"),
-        to: Square::from_san("e4"),
-        promote_to: None
-    };
-
-    position.make_move(motion);
-
-    let white_pawn = Piece::new(Color::White, PieceKind::Pawn);
-    assert_eq!(Some(white_pawn), position.piece_at(Square::from_san("e4")));
-    assert_eq!(None, position.piece_at(Square::from_san("e2")));
-    assert_eq!(Some(Square::from_san("e3")), position.en_passant);
-}
