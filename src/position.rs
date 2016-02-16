@@ -100,7 +100,20 @@ impl Position {
     pub fn make_move(&mut self, motion: Move) {
         let from = self.piece_at(motion.from).unwrap();
 
+        // change the bitboard of any piece being captured
+        match self.piece_at(motion.to) {
+            Some(to) => {
+                let bitboard = self.get_bitboard(to);
+                let bitmask = motion.to.to_bitboard();
+
+                *bitboard = bitboard.clone() ^ bitmask;
+            },
+
+            None => {}
+        };
+
         {
+            // change the bitboard of the moving piece
             let bitboard = self.get_bitboard(from.clone());
             let bitmask = motion.from.to_bitboard() | motion.to.to_bitboard();
 
@@ -126,6 +139,27 @@ impl Position {
             _ => {}
         }
 
+        // update half-move counter
+        match from.kind {
+            PieceKind::Pawn => {
+                self.halfmove_clock = 0;
+            },
+
+            _ => {
+                self.halfmove_clock += 1;
+            }
+        }
+
+        // update full-move number
+        match from.color {
+            Color::Black => {
+                self.fullmove_number += 1;
+            },
+
+            _ => {}
+        }
+
+        // flip side to play
         self.side_to_play = match self.side_to_play {
             Color::White => Color::Black,
             Color::Black => Color::White
@@ -268,4 +302,38 @@ fn make_move_e2e4_e7e5() {
     assert_eq!(Some(black_pawn), position.piece_at(Square::from_san("e5")));
     assert_eq!(None, position.piece_at(Square::from_san("e7")));
     assert_eq!(Some(Square::from_san("e6")), position.en_passant);
+
+    assert_eq!(2, position.fullmove_number);
+}
+
+#[test]
+fn make_move_capture() {
+    let fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 2";
+    let mut position = Position::from_fen(fen).unwrap();
+
+    let motion = Move {
+        from: Square::from_san("f3"),
+        to: Square::from_san("e5"),
+        promote_to: None
+    };
+
+    position.make_move(motion);
+
+    let white_knight = Piece::new(Color::White, PieceKind::Knight);
+    assert_eq!(Some(white_knight), position.piece_at(Square::from_san("e5")));
+    assert_eq!(None, position.piece_at(Square::from_san("f3")));
+    assert_eq!(1, position.halfmove_clock);
+
+    let motion = Move {
+        from: Square::from_san("c6"),
+        to: Square::from_san("e5"),
+        promote_to: None
+    };
+
+    position.make_move(motion);
+
+    let black_knight = Piece::new(Color::Black, PieceKind::Knight);
+    assert_eq!(Some(black_knight), position.piece_at(Square::from_san("e5")));
+    assert_eq!(None, position.piece_at(Square::from_san("c6")));
+    assert_eq!(2, position.halfmove_clock);
 }
