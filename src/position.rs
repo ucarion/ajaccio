@@ -136,6 +136,25 @@ impl Position {
                         Color::Black => motion.from - 8
                     });
                 }
+
+                let promo_rank = match self.side_to_play {
+                    Color::White => 7,
+                    Color::Black => 0
+                };
+
+                if motion.to.rank() == promo_rank {
+                    let army = match self.side_to_play {
+                        Color::White => &mut self.white,
+                        Color::Black => &mut self.black
+                    };
+
+                    let pawn_bitmask = motion.to.to_bitboard();
+                    army.pawns = army.pawns ^ pawn_bitmask;
+
+                    let promo_bitboard = army.get_bitboard_mut(motion.promote_to.unwrap());
+                    let promo_bitmask = motion.to.to_bitboard();
+                    *promo_bitboard = promo_bitboard.clone() | promo_bitmask;
+                }
             },
 
             PieceKind::Rook => {
@@ -334,6 +353,19 @@ struct Army {
     king: Bitboard
 }
 
+impl Army {
+    pub fn get_bitboard_mut(&mut self, kind: PieceKind) -> &mut Bitboard {
+        match kind {
+            PieceKind::Pawn => &mut self.pawns,
+            PieceKind::Knight => &mut self.knights,
+            PieceKind::Bishop => &mut self.bishops,
+            PieceKind::Rook => &mut self.rooks,
+            PieceKind::Queen => &mut self.queens,
+            PieceKind::King => &mut self.king
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct Move {
     from: Square,
@@ -499,4 +531,22 @@ fn make_move_castle() {
 
     assert!(position.black_can_oo);
     assert!(!position.black_can_ooo);
+}
+
+#[test]
+fn make_move_promotion() {
+    let fen = "8/7P/8/5K1k/8/8/8/8 w - - 0 1";
+    let mut position = Position::from_fen(fen).unwrap();
+
+    let motion = Move {
+        from: Square::from_san("h7"),
+        to: Square::from_san("h8"),
+        promote_to: Some(PieceKind::Rook)
+    };
+
+    position.make_move(motion);
+
+    let white_rook = Piece::new(Color::White, PieceKind::Rook);
+    assert_eq!(Some(white_rook), position.piece_at(Square::from_san("h8")));
+    assert_eq!(None, position.piece_at(Square::from_san("h7")));
 }
