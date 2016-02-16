@@ -1,8 +1,10 @@
+use std::fmt;
+
 use fen;
 use bitboard::Bitboard;
 use square::Square;
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Position {
     white: Army,
     black: Army,
@@ -191,6 +193,61 @@ impl Position {
 
             }
         }
+    }
+}
+
+impl fmt::Debug for Position {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        let line = "+---+---+---+---+---+---+---+---+\n";
+        try!(write!(f, "{}", line));
+
+        for rank in (0..8).rev() {
+            try!(write!(f, "|"));
+
+            for file in 0..8 {
+                let sq = Square::from_coords(file, rank);
+
+                match self.piece_at(sq) {
+                    Some(piece) => try!(write!(f, " {} |", piece)),
+                    None => try!(write!(f, "   |"))
+                };
+
+            }
+
+            try!(write!(f, "\n"));
+            try!(write!(f, "{}", line));
+        }
+
+        try!(write!(f, "To play: {:?}\n", self.side_to_play));
+        try!(write!(f, "En passant: {:?}\n", self.en_passant));
+        try!(write!(f, "OO: {}, OOO: {}, oo: {}, ooo: {}\n",
+                        self.white_can_oo, self.white_can_ooo,
+                        self.black_can_oo, self.black_can_ooo));
+        try!(write!(f, "Half-move: {}, Full-move: {}\n",
+                        self.halfmove_clock, self.fullmove_number));
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for Piece {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let to_write = match (&self.color, &self.kind) {
+            (&Color::White, &PieceKind::Pawn) => 'P',
+            (&Color::White, &PieceKind::Knight) => 'N',
+            (&Color::White, &PieceKind::Bishop) => 'B',
+            (&Color::White, &PieceKind::Rook) => 'R',
+            (&Color::White, &PieceKind::Queen) => 'Q',
+            (&Color::White, &PieceKind::King) => 'K',
+            (&Color::Black, &PieceKind::Pawn) => 'p',
+            (&Color::Black, &PieceKind::Knight) => 'n',
+            (&Color::Black, &PieceKind::Bishop) => 'b',
+            (&Color::Black, &PieceKind::Rook) => 'r',
+            (&Color::Black, &PieceKind::Queen) => 'q',
+            (&Color::Black, &PieceKind::King) => 'k'
+        };
+
+        write!(f, "{}", to_write)
     }
 }
 
