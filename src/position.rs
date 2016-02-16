@@ -1,4 +1,5 @@
 use fen;
+use bitboard::Bitboard;
 
 #[derive(Debug, Default)]
 struct Position {
@@ -37,7 +38,8 @@ impl Position {
                         fen::PieceKind::King => &mut army.king
                     };
 
-                    bitboard.0 |= 1 << i;
+                    let square_bitboard = Square(i as u8).to_bitboard();
+                    *bitboard = bitboard.clone() | square_bitboard;
                 }
             }
         }
@@ -61,6 +63,42 @@ impl Position {
 
         Ok(position)
     }
+
+    fn piece_at(&self, square: Square) -> Option<Piece> {
+        let bitboard = square.to_bitboard();
+
+        if (self.white.pawns & bitboard).is_nonempty() {
+            Some(Piece::new(Color::White, PieceKind::Pawn))
+        } else if (self.white.knights & bitboard).is_nonempty() {
+            Some(Piece::new(Color::White, PieceKind::Knight))
+        } else if (self.white.bishops& bitboard).is_nonempty() {
+            Some(Piece::new(Color::White, PieceKind::Bishop))
+        } else if (self.white.rooks & bitboard).is_nonempty() {
+            Some(Piece::new(Color::White, PieceKind::Rook))
+        } else if (self.white.queens & bitboard).is_nonempty() {
+            Some(Piece::new(Color::White, PieceKind::Queen))
+        } else if (self.white.king & bitboard).is_nonempty() {
+            Some(Piece::new(Color::White, PieceKind::King))
+        } else if (self.black.pawns & bitboard).is_nonempty() {
+            Some(Piece::new(Color::Black, PieceKind::Pawn))
+        } else if (self.black.knights & bitboard).is_nonempty() {
+            Some(Piece::new(Color::Black, PieceKind::Knight))
+        } else if (self.black.bishops& bitboard).is_nonempty() {
+            Some(Piece::new(Color::Black, PieceKind::Bishop))
+        } else if (self.black.rooks & bitboard).is_nonempty() {
+            Some(Piece::new(Color::Black, PieceKind::Rook))
+        } else if (self.black.queens & bitboard).is_nonempty() {
+            Some(Piece::new(Color::Black, PieceKind::Queen))
+        } else if (self.black.king & bitboard).is_nonempty() {
+            Some(Piece::new(Color::Black, PieceKind::King))
+        } else {
+            None
+        }
+    }
+
+    fn make_move(&mut self, motion: Move) {
+
+    }
 }
 
 #[derive(Debug, Default)]
@@ -73,11 +111,14 @@ struct Army {
     king: Bitboard
 }
 
-#[derive(Debug, Default)]
-struct Bitboard(u64);
-
 #[derive(Debug, Default, Eq, PartialEq)]
 struct Square(u8);
+
+struct Move {
+    from: Square,
+    to: Square,
+    promote_to: Option<PieceKind>,
+}
 
 impl Square {
     /// Makes a Square from a (file, rank) pair. To represent "a8", pass (0, 7).
@@ -114,12 +155,41 @@ impl Square {
 
         Square::from_coords(file, rank)
     }
+
+    fn to_bitboard(self) -> Bitboard {
+        Bitboard::new(1 << self.0)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct Piece {
+    color: Color,
+    kind: PieceKind
+}
+
+impl Piece {
+    fn new(color: Color, kind: PieceKind) -> Piece {
+        Piece {
+            color: color,
+            kind: kind
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
 enum Color {
     White,
     Black
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum PieceKind {
+    Pawn,
+    Knight,
+    Bishop,
+    Rook,
+    Queen,
+    King
 }
 
 impl Default for Color {
@@ -144,7 +214,33 @@ fn fen_parsing() {
 }
 
 #[test]
+fn piece_at() {
+    let fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+    let position = Position::from_fen(fen).unwrap();
+
+    let white_rook = Piece::new(Color::White, PieceKind::Rook);
+    assert_eq!(Some(white_rook), position.piece_at(Square::from_san("a1")));
+}
+
+#[test]
 fn san_square_parsing() {
     assert_eq!(Square(4 + 2 * 8), Square::from_san("e3"));
     assert_eq!(Square(4 + 2 * 8), Square::from_coords(4, 2));
+}
+
+#[test]
+fn make_move() {
+    let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    let mut position = Position::from_fen(fen).unwrap();
+
+    let motion = Move {
+        from: Square::from_san("e2"),
+        to: Square::from_san("e4"),
+        promote_to: None
+    };
+
+    position.make_move(motion);
+
+    let white_pawn = Piece::new(Color::White, PieceKind::Pawn);
+    assert_eq!(Some(white_pawn), position.piece_at(Square::from_san("e4")));
 }
