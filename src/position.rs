@@ -138,6 +138,53 @@ impl Position {
                 }
             },
 
+            PieceKind::King => {
+                // handle castling and update castling rights
+                match self.side_to_play {
+                    Color::White => {
+                        let king_from = Square::from_san("e1");
+                        let oo_to = Square::from_san("g1");
+                        let ooo_to = Square::from_san("c1");
+
+                        if motion.from == king_from && motion.to == oo_to {
+                            let rook_bitmask = Square::from_san("h1").to_bitboard()
+                                    | Square::from_san("f1").to_bitboard();
+                            self.white.rooks = self.white.rooks ^ rook_bitmask;
+                        }
+
+                        if motion.from == king_from && motion.to == ooo_to {
+                            let rook_bitmask = Square::from_san("a1").to_bitboard()
+                                    | Square::from_san("d1").to_bitboard();
+                            self.white.rooks = self.white.rooks ^ rook_bitmask;
+                        }
+
+                        self.white_can_oo = false;
+                        self.white_can_ooo = false;
+                    },
+
+                    Color::Black => {
+                        let king_from = Square::from_san("e8");
+                        let oo_to = Square::from_san("g8");
+                        let ooo_to = Square::from_san("c8");
+
+                        if motion.from == king_from && motion.to == oo_to {
+                            let rook_bitmask = Square::from_san("h8").to_bitboard()
+                                    | Square::from_san("f8").to_bitboard();
+                            self.white.rooks = self.white.rooks ^ rook_bitmask;
+                        }
+
+                        if motion.from == king_from && motion.to == ooo_to {
+                            let rook_bitmask = Square::from_san("a8").to_bitboard()
+                                    | Square::from_san("d8").to_bitboard();
+                            self.white.rooks = self.white.rooks ^ rook_bitmask;
+                        }
+
+                        self.black_can_oo = false;
+                        self.black_can_ooo = false;
+                    }
+                }
+            }
+
             _ => {}
         }
 
@@ -393,4 +440,26 @@ fn make_move_capture() {
     assert_eq!(Some(black_knight), position.piece_at(Square::from_san("e5")));
     assert_eq!(None, position.piece_at(Square::from_san("c6")));
     assert_eq!(2, position.halfmove_clock);
+}
+
+#[test]
+fn make_move_castle() {
+    let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+    let mut position = Position::from_fen(fen).unwrap();
+
+    let motion = Move {
+        from: Square::from_san("e1"),
+        to: Square::from_san("g1"),
+        promote_to: None
+    };
+
+    position.make_move(motion);
+
+    let white_king = Piece::new(Color::White, PieceKind::King);
+    let white_rook = Piece::new(Color::White, PieceKind::Rook);
+    assert_eq!(Some(white_king), position.piece_at(Square::from_san("g1")));
+    assert_eq!(Some(white_rook), position.piece_at(Square::from_san("f1")));
+    assert_eq!(None, position.piece_at(Square::from_san("h1")));
+    assert!(!position.white_can_oo);
+    assert!(!position.white_can_ooo);
 }
