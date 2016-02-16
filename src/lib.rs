@@ -1,4 +1,5 @@
 extern crate fen;
 
-mod bitboard;
-mod position;
+pub mod square;
+pub mod bitboard;
+pub mod position;

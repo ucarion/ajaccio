@@ -1,4 +1,4 @@
-use std::ops::{BitAnd, BitOr};
+use std::ops::{BitAnd, BitOr, BitXor};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Bitboard(u64);
@@ -19,6 +19,14 @@ impl BitOr for Bitboard {
     }
 }
 
+impl BitXor for Bitboard {
+    type Output = Bitboard;
+
+    fn bitxor(self, rhs: Bitboard) -> Bitboard {
+        Bitboard(self.0 ^ rhs.0)
+    }
+}
+
 impl Bitboard {
     pub fn new(bitmask: u64) -> Bitboard {
         Bitboard(bitmask)
@@ -31,9 +39,4 @@ impl Bitboard {
     pub fn is_nonempty(&self) -> bool {
         !self.is_empty()
     }
-}
-
-#[test]
-fn foo() {
-    let foo = Bitboard(0) & Bitboard(1);
 }

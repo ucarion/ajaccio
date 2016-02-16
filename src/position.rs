@@ -1,8 +1,9 @@
 use fen;
 use bitboard::Bitboard;
+use square::Square;
 
 #[derive(Debug, Default)]
-struct Position {
+pub struct Position {
     white: Army,
     black: Army,
     side_to_play: Color,
@@ -16,7 +17,7 @@ struct Position {
 }
 
 impl Position {
-    fn from_fen(fen: &str) -> fen::FenResult<Position> {
+    pub fn from_fen(fen: &str) -> fen::FenResult<Position> {
         let mut position = Position::default();
         let fen_board = try!(fen::BoardState::from_fen(fen));
 
@@ -38,7 +39,7 @@ impl Position {
                         fen::PieceKind::King => &mut army.king
                     };
 
-                    let square_bitboard = Square(i as u8).to_bitboard();
+                    let square_bitboard = Square::new(i as u8).to_bitboard();
                     *bitboard = bitboard.clone() | square_bitboard;
                 }
             }
@@ -55,7 +56,7 @@ impl Position {
         position.black_can_ooo = fen_board.black_can_ooo;
         position.en_passant = match fen_board.en_passant_square {
             None => None,
-            Some(square) => Some(Square(square))
+            Some(square) => Some(Square::new(square))
         };
 
         position.halfmove_clock = fen_board.halfmove_clock;
@@ -64,7 +65,7 @@ impl Position {
         Ok(position)
     }
 
-    fn piece_at(&self, square: Square) -> Option<Piece> {
+    pub fn piece_at(&self, square: Square) -> Option<Piece> {
         let bitboard = square.to_bitboard();
 
         if (self.white.pawns & bitboard).is_nonempty() {
@@ -96,14 +97,42 @@ impl Position {
         }
     }
 
-    fn make_move(&mut self, motion: Move) {
+    pub fn make_move(&mut self, motion: Move) {
         let from = self.piece_at(motion.from).unwrap();
-        let bitboard = self.get_bitboard(from);
 
-        *bitboard = bitboard.clone() | motion.to.to_bitboard();
+        {
+            let bitboard = self.get_bitboard(from.clone());
+            let bitmask = motion.from.to_bitboard() | motion.to.to_bitboard();
+
+            *bitboard = bitboard.clone() ^ bitmask;
+        }
+
+        match from.kind {
+            PieceKind::Pawn => {
+                // handle en passant
+                let (ep_file_start, ep_file_end) = match self.side_to_play {
+                    Color::White => { (1, 3) },
+                    Color::Black => { (6, 4) }
+                };
+
+                if motion.from.rank() == ep_file_start && motion.to.rank() == ep_file_end {
+                    self.en_passant = Some(match self.side_to_play {
+                        Color::White => motion.from + 8,
+                        Color::Black => motion.from - 8
+                    });
+                }
+            },
+
+            _ => {}
+        }
+
+        self.side_to_play = match self.side_to_play {
+            Color::White => Color::Black,
+            Color::Black => Color::White
+        };
     }
 
-    fn get_bitboard(&mut self, piece: Piece) -> &mut Bitboard {
+    pub fn get_bitboard(&mut self, piece: Piece) -> &mut Bitboard {
         match piece.color {
             Color::White => {
                 match piece.kind {
@@ -141,64 +170,21 @@ struct Army {
     king: Bitboard
 }
 
-#[derive(Debug, Default, Eq, PartialEq)]
-struct Square(u8);
-
-struct Move {
+#[derive(Debug, Eq, PartialEq)]
+pub struct Move {
     from: Square,
     to: Square,
     promote_to: Option<PieceKind>,
 }
 
-impl Square {
-    /// Makes a Square from a (file, rank) pair. To represent "a8", pass (0, 7).
-    pub fn from_coords(file: u8, rank: u8) -> Square {
-        Square(file + rank * 8)
-    }
-
-    /// Makes a Square from Standard Algebraic Notation (e.g. "a8").
-    fn from_san(san: &str) -> Square {
-        let san: Vec<_> = san.chars().collect();
-        let file = match san[0] {
-            'a' => 0,
-            'b' => 1,
-            'c' => 2,
-            'd' => 3,
-            'e' => 4,
-            'f' => 5,
-            'g' => 6,
-            'h' => 7,
-            _ => panic!("Unknown file: {:?}", san[0])
-        };
-
-        let rank = match san[1] {
-            '1' => 0,
-            '2' => 1,
-            '3' => 2,
-            '4' => 3,
-            '5' => 4,
-            '6' => 5,
-            '7' => 6,
-            '8' => 7,
-            _ => panic!("Unknown rank: {:?}", san[1])
-        };
-
-        Square::from_coords(file, rank)
-    }
-
-    fn to_bitboard(self) -> Bitboard {
-        Bitboard::new(1 << self.0)
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-struct Piece {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Piece {
     color: Color,
     kind: PieceKind
 }
 
 impl Piece {
-    fn new(color: Color, kind: PieceKind) -> Piece {
+    pub fn new(color: Color, kind: PieceKind) -> Piece {
         Piece {
             color: color,
             kind: kind
@@ -206,14 +192,14 @@ impl Piece {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-enum Color {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Color {
     White,
     Black
 }
 
-#[derive(Debug, Eq, PartialEq)]
-enum PieceKind {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PieceKind {
     Pawn,
     Knight,
     Bishop,
@@ -238,7 +224,7 @@ fn fen_parsing() {
     assert!(position.white_can_ooo);
     assert!(position.black_can_oo);
     assert!(position.black_can_ooo);
-    assert_eq!(Some(Square(20)), position.en_passant);
+    assert_eq!(Some(Square::from_san("e3")), position.en_passant);
     assert_eq!(0, position.halfmove_clock);
     assert_eq!(1, position.fullmove_number);
 }
@@ -253,13 +239,7 @@ fn piece_at() {
 }
 
 #[test]
-fn san_square_parsing() {
-    assert_eq!(Square(4 + 2 * 8), Square::from_san("e3"));
-    assert_eq!(Square(4 + 2 * 8), Square::from_coords(4, 2));
-}
-
-#[test]
-fn make_move() {
+fn make_move_e2e4_e7e5() {
     let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     let mut position = Position::from_fen(fen).unwrap();
 
@@ -273,4 +253,38 @@ fn make_move() {
 
     let white_pawn = Piece::new(Color::White, PieceKind::Pawn);
     assert_eq!(Some(white_pawn), position.piece_at(Square::from_san("e4")));
+    assert_eq!(None, position.piece_at(Square::from_san("e2")));
+    assert_eq!(Some(Square::from_san("e3")), position.en_passant);
+
+    let motion = Move {
+        from: Square::from_san("e7"),
+        to: Square::from_san("e5"),
+        promote_to: None
+    };
+
+    position.make_move(motion);
+
+    let black_pawn = Piece::new(Color::Black, PieceKind::Pawn);
+    assert_eq!(Some(black_pawn), position.piece_at(Square::from_san("e5")));
+    assert_eq!(None, position.piece_at(Square::from_san("e7")));
+    assert_eq!(Some(Square::from_san("e6")), position.en_passant);
+}
+
+#[test]
+fn make_move_e2e4() {
+    let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    let mut position = Position::from_fen(fen).unwrap();
+
+    let motion = Move {
+        from: Square::from_san("e2"),
+        to: Square::from_san("e4"),
+        promote_to: None
+    };
+
+    position.make_move(motion);
+
+    let white_pawn = Piece::new(Color::White, PieceKind::Pawn);
+    assert_eq!(Some(white_pawn), position.piece_at(Square::from_san("e4")));
+    assert_eq!(None, position.piece_at(Square::from_san("e2")));
+    assert_eq!(Some(Square::from_san("e3")), position.en_passant);
 }
