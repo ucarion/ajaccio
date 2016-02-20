@@ -1,4 +1,7 @@
 use std::ops::{BitAnd, BitOr, BitXor};
+use std::fmt;
+
+use square::Square;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Bitboard(u64);
@@ -38,5 +41,36 @@ impl Bitboard {
 
     pub fn is_nonempty(&self) -> bool {
         !self.is_empty()
+    }
+
+    pub fn is_occupied(&self, square: Square) -> bool {
+        (self.clone() & square.to_bitboard()).is_nonempty()
+    }
+}
+
+impl fmt::Display for Bitboard {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let line = "+---+---+---+---+---+---+---+---+\n";
+        try!(write!(f, "{}", line));
+
+        for rank in (0..8).rev() {
+            try!(write!(f, "|"));
+
+            for file in 0..8 {
+                let sq = Square::from_coords(file, rank);
+                let to_write = if self.is_occupied(sq) {
+                    'X'
+                } else {
+                    ' '
+                };
+
+                try!(write!(f, " {} |", to_write));
+            }
+
+            try!(write!(f, "\n"));
+            try!(write!(f, "{}", line));
+        }
+
+        Ok(())
     }
 }

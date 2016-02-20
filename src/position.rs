@@ -203,7 +203,6 @@ impl Position {
                         }
                     }
                 }
-
             }
 
             PieceKind::King => {
