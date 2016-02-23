@@ -10,6 +10,10 @@ impl Square {
         Square(square_index)
     }
 
+    pub fn to_index(&self) -> u8 {
+        self.0
+    }
+
     /// Makes a Square from a (file, rank) pair. To represent "a8", pass (0, 7).
     pub fn from_coords(file: u8, rank: u8) -> Square {
         Square(file + rank * 8)

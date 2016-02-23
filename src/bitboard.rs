@@ -3,8 +3,9 @@ use std::fmt;
 
 use square::Square;
 
+// The internal u64 is `pub` for pragmatic reasons, but let's avoid using it too much.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Bitboard(u64);
+pub struct Bitboard(pub u64);
 
 impl BitAnd for Bitboard {
     type Output = Bitboard;
@@ -45,6 +46,10 @@ impl Bitboard {
 
     pub fn is_occupied(&self, square: Square) -> bool {
         (self.clone() & square.to_bitboard()).is_nonempty()
+    }
+
+    pub fn num_occupied_squares(&self) -> u32 {
+        self.0.count_ones()
     }
 }
 
