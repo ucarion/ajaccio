@@ -3,8 +3,9 @@ use std::fmt;
 use fen;
 use bitboard::Bitboard;
 use square::Square;
+use motion::{CastlingType, Move};
 
-#[derive(Default)]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub struct Position {
     white: Army,
     black: Army,
@@ -99,8 +100,17 @@ impl Position {
         }
     }
 
-    pub fn make_move(&mut self, motion: Move) {
+    pub fn make_move(&mut self, motion: Move) -> UndoContext {
         let from = self.piece_at(motion.from).unwrap();
+        let captured = self.piece_at(motion.to);
+
+        let mut undo = UndoContext {
+            halfmove_clock: self.halfmove_clock,
+            captured: captured.map(|piece| piece.kind),
+            en_passant: self.en_passant,
+            reset_oo: false,
+            reset_ooo: false
+        };
 
         // update half-move counter -- this is done early so that the move being performed can
         // reset it to zero later
@@ -115,7 +125,7 @@ impl Position {
         }
 
         // update full-move number
-        match from.color {
+        match self.side_to_play {
             Color::Black => {
                 self.fullmove_number += 1;
             },
@@ -124,7 +134,7 @@ impl Position {
         }
 
         // change the bitboard of any piece being captured
-        match self.piece_at(motion.to) {
+        match captured {
             Some(to) => {
                 self.halfmove_clock = 0;
 
@@ -160,12 +170,7 @@ impl Position {
                     });
                 }
 
-                let promo_rank = match self.side_to_play {
-                    Color::White => 7,
-                    Color::Black => 0
-                };
-
-                if motion.to.rank() == promo_rank {
+                if let Some(promote_to) = motion.promote_to {
                     let army = match self.side_to_play {
                         Color::White => &mut self.white,
                         Color::Black => &mut self.black
@@ -174,7 +179,7 @@ impl Position {
                     let pawn_bitmask = motion.to.to_bitboard();
                     army.pawns = army.pawns ^ pawn_bitmask;
 
-                    let promo_bitboard = army.get_bitboard_mut(motion.promote_to.unwrap());
+                    let promo_bitboard = army.get_bitboard_mut(promote_to);
                     let promo_bitmask = motion.to.to_bitboard();
                     *promo_bitboard = promo_bitboard.clone() | promo_bitmask;
                 }
@@ -186,73 +191,148 @@ impl Position {
                     Color::White => {
                         if motion.from == Square::from_san("h1") {
                             self.white_can_oo = false;
+                            undo.reset_oo = true;
                         }
 
                         if motion.from == Square::from_san("a1") {
                             self.white_can_ooo = false;
+                            undo.reset_ooo = true;
                         }
                     },
 
                     Color::Black => {
                         if motion.from == Square::from_san("h8") {
                             self.black_can_oo = false;
+                            undo.reset_oo = true;
                         }
 
                         if motion.from == Square::from_san("a8") {
                             self.black_can_ooo = false;
+                            undo.reset_ooo = true;
                         }
                     }
                 }
-            }
+            },
 
             PieceKind::King => {
-                // handle castling and update castling rights
-                match self.side_to_play {
-                    Color::White => {
-                        let king_from = Square::from_san("e1");
-                        let oo_to = Square::from_san("g1");
-                        let ooo_to = Square::from_san("c1");
+                self.white_can_oo = false;
+                self.white_can_ooo = false;
+                undo.reset_oo = true;
+                undo.reset_ooo = true;
 
-                        if motion.from == king_from && motion.to == oo_to {
-                            let rook_bitmask = Square::from_san("h1").to_bitboard()
-                                    | Square::from_san("f1").to_bitboard();
-                            self.white.rooks = self.white.rooks ^ rook_bitmask;
+                if let Some(castling_type) = motion.castling {
+                    match self.side_to_play {
+                        Color::White => {
+                            let bitmask = match castling_type {
+                                CastlingType::Kingside => Square::from_san("h1").to_bitboard()
+                                        | Square::from_san("f1").to_bitboard(),
+                                CastlingType::Queenside => Square::from_san("a1").to_bitboard()
+                                        | Square::from_san("d1").to_bitboard()
+                            };
+
+                            self.white.rooks = self.white.rooks ^ bitmask;
+                        },
+
+                        Color::Black => {
+                            let bitmask = match castling_type {
+                                CastlingType::Kingside => Square::from_san("h8").to_bitboard()
+                                    | Square::from_san("f8").to_bitboard(),
+                                CastlingType::Queenside => Square::from_san("a8").to_bitboard()
+                                        | Square::from_san("d8").to_bitboard()
+                            };
+
+                            self.black.rooks = self.black.rooks ^ bitmask;
                         }
-
-                        if motion.from == king_from && motion.to == ooo_to {
-                            let rook_bitmask = Square::from_san("a1").to_bitboard()
-                                    | Square::from_san("d1").to_bitboard();
-                            self.white.rooks = self.white.rooks ^ rook_bitmask;
-                        }
-
-                        self.white_can_oo = false;
-                        self.white_can_ooo = false;
-                    },
-
-                    Color::Black => {
-                        let king_from = Square::from_san("e8");
-                        let oo_to = Square::from_san("g8");
-                        let ooo_to = Square::from_san("c8");
-
-                        if motion.from == king_from && motion.to == oo_to {
-                            let rook_bitmask = Square::from_san("h8").to_bitboard()
-                                    | Square::from_san("f8").to_bitboard();
-                            self.white.rooks = self.white.rooks ^ rook_bitmask;
-                        }
-
-                        if motion.from == king_from && motion.to == ooo_to {
-                            let rook_bitmask = Square::from_san("a8").to_bitboard()
-                                    | Square::from_san("d8").to_bitboard();
-                            self.white.rooks = self.white.rooks ^ rook_bitmask;
-                        }
-
-                        self.black_can_oo = false;
-                        self.black_can_ooo = false;
                     }
                 }
-            }
+            },
 
             _ => {}
+        }
+
+        // flip side to play
+        self.side_to_play = match self.side_to_play {
+            Color::White => Color::Black,
+            Color::Black => Color::White
+        };
+
+        undo
+    }
+
+    pub fn undo_move(&mut self, motion: Move, undo: UndoContext) {
+        let to = self.piece_at(motion.to).unwrap();
+
+        if let Some(promote_to) = motion.promote_to {
+            let army = match self.side_to_play {
+                Color::White => &mut self.black,
+                Color::Black => &mut self.white
+            };
+
+            let pawn_bitmask = motion.from.to_bitboard();
+            army.pawns = army.pawns ^ pawn_bitmask;
+
+            let promo_bitboard = army.get_bitboard_mut(promote_to);
+            let promo_bitmask = motion.to.to_bitboard();
+
+            *promo_bitboard = promo_bitboard.clone() ^ promo_bitmask;
+        } else {
+            // change the bitboard of the moving piece
+            let bitboard = self.get_bitboard_mut(to.clone());
+            let bitmask = motion.from.to_bitboard() | motion.to.to_bitboard();
+
+            *bitboard = bitboard.clone() ^ bitmask;
+        }
+
+        if let Some(captured) = undo.captured {
+            let side = self.side_to_play;
+            let bitboard = self.get_army_mut(side).get_bitboard_mut(captured);
+            let bitmask = motion.to.to_bitboard();
+
+            *bitboard = bitboard.clone() ^ bitmask;
+        };
+
+        // restore state from the UndoContext
+        self.halfmove_clock = undo.halfmove_clock;
+        self.en_passant = undo.en_passant;
+
+        if undo.reset_oo {
+            match self.side_to_play {
+                Color::White => self.black_can_oo = true,
+                Color::Black => self.white_can_oo = true
+            };
+        }
+
+        if undo.reset_ooo {
+            match self.side_to_play {
+                Color::White => self.black_can_ooo = true,
+                Color::Black => self.white_can_ooo = true
+            };
+        }
+
+        if let Some(castling_type) = motion.castling {
+            match self.side_to_play {
+                Color::White => {
+                    let bitmask = match castling_type {
+                        CastlingType::Kingside => Square::from_san("h8").to_bitboard()
+                            | Square::from_san("f8").to_bitboard(),
+                        CastlingType::Queenside => Square::from_san("a8").to_bitboard()
+                                | Square::from_san("d8").to_bitboard()
+                    };
+
+                    self.black.rooks = self.black.rooks ^ bitmask;
+                },
+
+                Color::Black => {
+                    let bitmask = match castling_type {
+                        CastlingType::Kingside => Square::from_san("h1").to_bitboard()
+                                | Square::from_san("f1").to_bitboard(),
+                        CastlingType::Queenside => Square::from_san("a1").to_bitboard()
+                                | Square::from_san("d1").to_bitboard()
+                    };
+
+                    self.white.rooks = self.white.rooks ^ bitmask;
+                }
+            }
         }
 
         // flip side to play
@@ -274,7 +354,15 @@ impl Position {
     }
 }
 
-impl fmt::Debug for Position {
+pub struct UndoContext {
+    pub halfmove_clock: u64,
+    pub captured: Option<PieceKind>,
+    pub en_passant: Option<Square>,
+    pub reset_oo: bool,
+    pub reset_ooo: bool
+}
+
+impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let line = "+---+---+---+---+---+---+---+---+\n";
         try!(write!(f, "{}", line));
@@ -329,7 +417,7 @@ impl fmt::Display for Piece {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Army {
     pawns: Bitboard,
     knights: Bitboard,
@@ -352,14 +440,7 @@ impl Army {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub struct Move {
-    from: Square,
-    to: Square,
-    promote_to: Option<PieceKind>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Piece {
     color: Color,
     kind: PieceKind
@@ -374,13 +455,13 @@ impl Piece {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Color {
     White,
     Black
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PieceKind {
     Pawn,
     Knight,
@@ -428,7 +509,8 @@ fn make_move_e2e4_e7e5() {
     let motion = Move {
         from: Square::from_san("e2"),
         to: Square::from_san("e4"),
-        promote_to: None
+        promote_to: None,
+        castling: None
     };
 
     position.make_move(motion);
@@ -441,7 +523,8 @@ fn make_move_e2e4_e7e5() {
     let motion = Move {
         from: Square::from_san("e7"),
         to: Square::from_san("e5"),
-        promote_to: None
+        promote_to: None,
+        castling: None
     };
 
     position.make_move(motion);
@@ -462,7 +545,8 @@ fn make_move_capture() {
     let motion = Move {
         from: Square::from_san("f3"),
         to: Square::from_san("e5"),
-        promote_to: None
+        promote_to: None,
+        castling: None
     };
 
     position.make_move(motion);
@@ -475,7 +559,8 @@ fn make_move_capture() {
     let motion = Move {
         from: Square::from_san("c6"),
         to: Square::from_san("e5"),
-        promote_to: None
+        promote_to: None,
+        castling: None
     };
 
     position.make_move(motion);
@@ -494,7 +579,8 @@ fn make_move_castle() {
     let motion = Move {
         from: Square::from_san("e1"),
         to: Square::from_san("g1"),
-        promote_to: None
+        promote_to: None,
+        castling: Some(CastlingType::Kingside)
     };
 
     position.make_move(motion);
@@ -510,7 +596,8 @@ fn make_move_castle() {
     let motion = Move {
         from: Square::from_san("a8"),
         to: Square::from_san("a6"),
-        promote_to: None
+        promote_to: None,
+        castling: None
     };
 
     position.make_move(motion);
@@ -527,7 +614,8 @@ fn make_move_promotion() {
     let motion = Move {
         from: Square::from_san("h7"),
         to: Square::from_san("h8"),
-        promote_to: Some(PieceKind::Rook)
+        promote_to: Some(PieceKind::Rook),
+        castling: None
     };
 
     position.make_move(motion);
@@ -535,4 +623,61 @@ fn make_move_promotion() {
     let white_rook = Piece::new(Color::White, PieceKind::Rook);
     assert_eq!(Some(white_rook), position.piece_at(Square::from_san("h8")));
     assert_eq!(None, position.piece_at(Square::from_san("h7")));
+}
+
+#[test]
+fn make_unmake_capture() {
+    let fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 2";
+    let mut position = Position::from_fen(fen).unwrap();
+    let original = position.clone();
+
+    let motion = Move {
+        from: Square::from_san("f3"),
+        to: Square::from_san("e5"),
+        promote_to: None,
+        castling: None
+    };
+
+    let undo = position.make_move(motion);
+    position.undo_move(motion, undo);
+
+    assert_eq!(original, position);
+}
+
+#[test]
+fn make_unmake_castle() {
+    let fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+    let mut position = Position::from_fen(fen).unwrap();
+    let original = position.clone();
+
+    let motion = Move {
+        from: Square::from_san("e1"),
+        to: Square::from_san("g1"),
+        promote_to: None,
+        castling: Some(CastlingType::Kingside)
+    };
+
+    let undo = position.make_move(motion);
+    position.undo_move(motion, undo);
+
+    assert_eq!(original, position);
+}
+
+#[test]
+fn make_unmake_promotion() {
+    let fen = "8/7P/8/5K1k/8/8/8/8 w - - 0 1";
+    let mut position = Position::from_fen(fen).unwrap();
+    let original = position.clone();
+
+    let motion = Move {
+        from: Square::from_san("h7"),
+        to: Square::from_san("h8"),
+        promote_to: Some(PieceKind::Rook),
+        castling: None
+    };
+
+    let undo = position.make_move(motion);
+    position.undo_move(motion, undo);
+
+    assert_eq!(original, position);
 }
