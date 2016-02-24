@@ -133,6 +133,26 @@ impl Position {
             _ => {}
         }
 
+        if let Some(promote_to) = motion.promote_to {
+            let army = match self.side_to_play {
+                Color::White => &mut self.white,
+                Color::Black => &mut self.black
+            };
+
+            let pawn_bitmask = motion.from.to_bitboard();
+            army.pawns = army.pawns ^ pawn_bitmask;
+
+            let promo_bitboard = army.get_bitboard_mut(promote_to);
+            let promo_bitmask = motion.to.to_bitboard();
+            *promo_bitboard = promo_bitboard.clone() | promo_bitmask;
+        } else {
+            // change the bitboard of the moving piece
+            let bitboard = self.get_bitboard_mut(from.clone());
+            let bitmask = motion.from.to_bitboard() | motion.to.to_bitboard();
+
+            *bitboard = bitboard.clone() ^ bitmask;
+        }
+
         // change the bitboard of any piece being captured
         match captured {
             Some(to) => {
@@ -147,14 +167,6 @@ impl Position {
             None => {}
         };
 
-        {
-            // change the bitboard of the moving piece
-            let bitboard = self.get_bitboard_mut(from.clone());
-            let bitmask = motion.from.to_bitboard() | motion.to.to_bitboard();
-
-            *bitboard = bitboard.clone() ^ bitmask;
-        }
-
         match from.kind {
             PieceKind::Pawn => {
                 // handle en passant
@@ -168,20 +180,6 @@ impl Position {
                         Color::White => motion.from + 8,
                         Color::Black => motion.from - 8
                     });
-                }
-
-                if let Some(promote_to) = motion.promote_to {
-                    let army = match self.side_to_play {
-                        Color::White => &mut self.white,
-                        Color::Black => &mut self.black
-                    };
-
-                    let pawn_bitmask = motion.to.to_bitboard();
-                    army.pawns = army.pawns ^ pawn_bitmask;
-
-                    let promo_bitboard = army.get_bitboard_mut(promote_to);
-                    let promo_bitmask = motion.to.to_bitboard();
-                    *promo_bitboard = promo_bitboard.clone() | promo_bitmask;
                 }
             },
 
@@ -291,10 +289,6 @@ impl Position {
             *bitboard = bitboard.clone() ^ bitmask;
         };
 
-        // restore state from the UndoContext
-        self.halfmove_clock = undo.halfmove_clock;
-        self.en_passant = undo.en_passant;
-
         if undo.reset_oo {
             match self.side_to_play {
                 Color::White => self.black_can_oo = true,
@@ -334,6 +328,16 @@ impl Position {
                 }
             }
         }
+
+        // restore state from the UndoContext
+        self.halfmove_clock = undo.halfmove_clock;
+        self.en_passant = undo.en_passant;
+
+        match self.side_to_play {
+            Color::White => { self.fullmove_number -= 1 },
+            _ => {}
+        }
+
 
         // flip side to play
         self.side_to_play = match self.side_to_play {
@@ -623,6 +627,37 @@ fn make_move_promotion() {
     let white_rook = Piece::new(Color::White, PieceKind::Rook);
     assert_eq!(Some(white_rook), position.piece_at(Square::from_san("h8")));
     assert_eq!(None, position.piece_at(Square::from_san("h7")));
+}
+
+#[test]
+fn make_ummake_moves() {
+    let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    let mut position = Position::from_fen(fen).unwrap();
+    let original1 = position.clone();
+
+    let motion1 = Move {
+        from: Square::from_san("e2"),
+        to: Square::from_san("e4"),
+        promote_to: None,
+        castling: None
+    };
+
+    let undo1 = position.make_move(motion1);
+    let original2 = position.clone();
+
+    let motion2 = Move {
+        from: Square::from_san("e7"),
+        to: Square::from_san("e5"),
+        promote_to: None,
+        castling: None
+    };
+
+    let undo2 = position.make_move(motion2);
+
+    position.undo_move(motion2, undo2);
+    assert_eq!(original2, position);
+    position.undo_move(motion1, undo1);
+    assert_eq!(original1, position);
 }
 
 #[test]
