@@ -6,3 +6,4 @@ pub mod bitboard;
 pub mod motion;
 pub mod position;
 pub mod magic;
+mod movegen;
