@@ -1,4 +1,4 @@
-use std::ops::{BitAnd, BitOr, BitXor};
+use std::ops::{BitAnd, BitOr, BitXor, Not};
 use std::fmt;
 
 use square::Square;
@@ -28,6 +28,14 @@ impl BitXor for Bitboard {
 
     fn bitxor(self, rhs: Bitboard) -> Bitboard {
         Bitboard(self.0 ^ rhs.0)
+    }
+}
+
+impl Not for Bitboard {
+    type Output = Bitboard;
+
+    fn not(self) -> Bitboard {
+        Bitboard(!self.0)
     }
 }
 

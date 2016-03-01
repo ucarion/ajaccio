@@ -14,18 +14,17 @@ mod iter {
         type Item = Move;
 
         fn next(&mut self) -> Option<Move> {
-            if let Some(piece) = self.buffer.pop() {
-                return Some(piece);
+            if let Some(motion) = self.buffer.pop() {
+                return Some(motion);
             }
 
-            if let Some(next_to_return) = self.next_to_return {
-                self.get_moves(next_to_return);
-                self.next_to_return = self.next_piece(next_to_return);
-
-                return self.buffer.pop();
+            while self.next_to_return.is_some() && self.buffer.is_empty() {
+                let next = self.next_to_return.unwrap();
+                self.get_moves(next);
+                self.next_to_return = self.next_piece(next);
             }
 
-            None
+            self.buffer.pop()
         }
     }
 
@@ -42,13 +41,32 @@ mod iter {
         fn get_moves(&mut self, piece: Piece) {
             match (piece.color, piece.kind) {
                 (Color::White, PieceKind::Pawn) => self.get_white_pawn_moves(),
+                (Color::White, PieceKind::Knight) => self.get_white_knight_moves(),
+                (Color::White, PieceKind::Bishop) => {},
+                (Color::White, PieceKind::Rook) => {},
+                (Color::White, PieceKind::Queen) => {},
+                (Color::White, PieceKind::King) => self.get_white_king_moves(),
+
                 (Color::Black, PieceKind::Pawn) => self.get_black_pawn_moves(),
-                _ => panic!()
+                (Color::Black, PieceKind::Knight) => self.get_black_knight_moves(),
+                (Color::Black, PieceKind::Bishop) => {},
+                (Color::Black, PieceKind::Rook) => {},
+                (Color::Black, PieceKind::Queen) => {},
+                (Color::Black, PieceKind::King) => self.get_black_king_moves()
             };
         }
 
         fn next_piece(&self, piece: Piece) -> Option<Piece> {
-            None
+            let next_kind = match piece.kind {
+                PieceKind::Pawn => Some(PieceKind::Knight),
+                PieceKind::Knight => Some(PieceKind::Bishop),
+                PieceKind::Bishop => Some(PieceKind::Rook),
+                PieceKind::Rook => Some(PieceKind::Queen),
+                PieceKind::Queen => Some(PieceKind::King),
+                PieceKind::King => None
+            };
+
+            next_kind.map(|kind| Piece::new(piece.color, kind))
         }
 
         fn get_white_pawn_moves(&mut self) {
@@ -186,6 +204,70 @@ mod iter {
                 }
             }
         }
+
+        fn get_white_knight_moves(&mut self) {
+            for from in self.position.white.knights.squares() {
+                let knight_attacks = super::bitmask::knight_moves(from);
+                let knight_attacks = knight_attacks & !self.position.white.all;
+
+                for to in knight_attacks.squares() {
+                    self.buffer.push(Move {
+                        from: from,
+                        to: to,
+                        promote_to: None,
+                        castling: None
+                    });
+                }
+            }
+        }
+
+        fn get_black_knight_moves(&mut self) {
+            for from in self.position.black.knights.squares() {
+                let knight_attacks = super::bitmask::knight_moves(from);
+                let knight_attacks = knight_attacks & !self.position.black.all;
+
+                for to in knight_attacks.squares() {
+                    self.buffer.push(Move {
+                        from: from,
+                        to: to,
+                        promote_to: None,
+                        castling: None
+                    });
+                }
+            }
+        }
+
+        fn get_white_king_moves(&mut self) {
+            for from in self.position.white.king.squares() {
+                let king_attacks = super::bitmask::king_moves(from);
+                let king_attacks = king_attacks & !self.position.white.all;
+
+                for to in king_attacks.squares() {
+                    self.buffer.push(Move {
+                        from: from,
+                        to: to,
+                        promote_to: None,
+                        castling: None
+                    });
+                }
+            }
+        }
+
+        fn get_black_king_moves(&mut self) {
+            for from in self.position.black.king.squares() {
+                let king_attacks = super::bitmask::king_moves(from);
+                let king_attacks = king_attacks & !self.position.black.all;
+
+                for to in king_attacks.squares() {
+                    self.buffer.push(Move {
+                        from: from,
+                        to: to,
+                        promote_to: None,
+                        castling: None
+                    });
+                }
+            }
+        }
     }
 
     #[test]
@@ -194,6 +276,20 @@ mod iter {
         let position = Position::from_fen(fen).unwrap();
 
         // I have no good way to test this. See for youself, it's correct.
+        //
+        // TODO: Actual tests? Is it really worth it?
+        let iter = MovesIter::new(&position);
+        for motion in iter {
+            println!("{}", motion.from.to_bitboard() | motion.to.to_bitboard());
+        }
+        // panic!();
+    }
+
+    #[test]
+    fn test_knight_king_moves() {
+        let fen = "6p1/6k1/2n1p1P1/4P3/1p2p2p/1p2P2P/1K4N1/1P6 w - - 0 1";
+        let position = Position::from_fen(fen).unwrap();
+
         let iter = MovesIter::new(&position);
         for motion in iter {
             println!("{}", motion.from.to_bitboard() | motion.to.to_bitboard());
@@ -230,7 +326,7 @@ mod bitmask {
         result
     }
 
-    fn knight_moves(square: Square) -> Bitboard {
+    pub fn knight_moves(square: Square) -> Bitboard {
         let mut result = Bitboard::new(0);
         let file = square.file() as i8;
         let rank = square.rank() as i8;
@@ -247,7 +343,7 @@ mod bitmask {
         result
     }
 
-    fn king_moves(square: Square) -> Bitboard {
+    pub fn king_moves(square: Square) -> Bitboard {
         let mut result = Bitboard::new(0);
         let file = square.file() as i8;
         let rank = square.rank() as i8;
