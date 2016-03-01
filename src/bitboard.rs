@@ -51,6 +51,10 @@ impl Bitboard {
     pub fn num_occupied_squares(&self) -> u32 {
         self.0.count_ones()
     }
+
+    pub fn squares(self) -> SquaresIter {
+        SquaresIter { bitboard: self }
+    }
 }
 
 impl fmt::Display for Bitboard {
@@ -78,4 +82,40 @@ impl fmt::Display for Bitboard {
 
         Ok(())
     }
+}
+
+pub struct SquaresIter {
+    bitboard: Bitboard
+}
+
+impl Iterator for SquaresIter {
+    type Item = Square;
+
+    fn next(&mut self) -> Option<Square> {
+        if self.bitboard.is_empty() {
+            None
+        } else {
+            let top_one_square = Square::new(63 - self.bitboard.0.leading_zeros() as u8);
+            let without_top = self.bitboard ^ top_one_square.to_bitboard();
+
+            self.bitboard = without_top;
+            Some(top_one_square)
+        }
+    }
+}
+
+impl SquaresIter {
+    fn new(bitboard: Bitboard) -> SquaresIter {
+        SquaresIter { bitboard: bitboard }
+    }
+}
+
+#[test]
+fn test_squares_iter() {
+    let a = Square::from_san("e6");
+    let b = Square::from_san("c2");
+
+    let expected = vec![a, b];
+    let actual = SquaresIter::new(a.to_bitboard() | b.to_bitboard()).collect::<Vec<_>>();
+    assert_eq!(expected, actual);
 }

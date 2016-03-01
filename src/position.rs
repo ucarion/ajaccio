@@ -7,16 +7,18 @@ use motion::{CastlingType, Move};
 
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub struct Position {
-    white: Army,
-    black: Army,
-    side_to_play: Color,
-    white_can_oo: bool,
-    white_can_ooo: bool,
-    black_can_oo: bool,
-    black_can_ooo: bool,
-    en_passant: Option<Square>,
-    halfmove_clock: u64,
-    fullmove_number: u64
+    pub white: Army,
+    pub black: Army,
+    pub all: Bitboard,
+
+    pub side_to_play: Color,
+    pub white_can_oo: bool,
+    pub white_can_ooo: bool,
+    pub black_can_oo: bool,
+    pub black_can_ooo: bool,
+    pub en_passant: Option<Square>,
+    pub halfmove_clock: u64,
+    pub fullmove_number: u64
 }
 
 impl Position {
@@ -64,6 +66,8 @@ impl Position {
 
         position.halfmove_clock = fen_board.halfmove_clock;
         position.fullmove_number = fen_board.fullmove_number;
+
+        position.update_special_bitboards();
 
         Ok(position)
     }
@@ -356,6 +360,12 @@ impl Position {
     pub fn get_bitboard_mut(&mut self, piece: Piece) -> &mut Bitboard {
         self.get_army_mut(piece.color).get_bitboard_mut(piece.kind)
     }
+
+    fn update_special_bitboards(&mut self) {
+        self.white.update_union();
+        self.black.update_union();
+        self.all = self.white.all | self.black.all;
+    }
 }
 
 pub struct UndoContext {
@@ -423,12 +433,13 @@ impl fmt::Display for Piece {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Army {
-    pawns: Bitboard,
-    knights: Bitboard,
-    bishops: Bitboard,
-    rooks: Bitboard,
-    queens: Bitboard,
-    king: Bitboard
+    pub pawns: Bitboard,
+    pub knights: Bitboard,
+    pub bishops: Bitboard,
+    pub rooks: Bitboard,
+    pub queens: Bitboard,
+    pub king: Bitboard,
+    pub all: Bitboard
 }
 
 impl Army {
@@ -442,12 +453,17 @@ impl Army {
             PieceKind::King => &mut self.king
         }
     }
+
+    pub fn update_union(&mut self) {
+        self.all =
+                self.pawns | self.knights | self.bishops | self.rooks | self.queens | self.king;
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Piece {
-    color: Color,
-    kind: PieceKind
+    pub color: Color,
+    pub kind: PieceKind
 }
 
 impl Piece {
